@@ -1,62 +1,1520 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-  <PropertyGroup>
-    <LangVersion>7.2</LangVersion>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{D85F593E-AD45-4323-8E49-984486DAF792}</ProjectGuid>
-    <ProjectTypeGuids>{DD87C1B2-3799-4CA2-93B6-5288EE928820};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>cAlgo</RootNamespace>
-    <AssemblyName>Sufi Bot V4</AssemblyName>
-    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
-    <TargetFrameworkProfile>Client</TargetFrameworkProfile>
-    <FileAlignment>512</FileAlignment>
-    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <WarningsAsErrors>CS0108,CS0162,CS0109,CS0219,CS0169,CS0628</WarningsAsErrors>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <WarningsAsErrors>CS0108,CS0162,CS0109,CS0219,CS0169,CS0628</WarningsAsErrors>
-  </PropertyGroup>
-  <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Xml" />
-    <Reference Include="cAlgo.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=3499da3018340880, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\API\cAlgo.API.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="Sufi Bot V4.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
-</Project>
+using System;
+using System.Linq;
+using System.Text.RegularExpressions;
+using cAlgo.API;
+using cAlgo.API.Indicators;
+using cAlgo.API.Internals;
+using cAlgo.Indicators;
+
+namespace cAlgo.Robots
+{
+    [Robot(TimeZone = TimeZones.UTC, AccessRights = AccessRights.None)]
+    public class SufiBotV4 : Robot
+    {
+        #region User defined parameters
+
+        [Parameter("Instance Name", DefaultValue = "000100", Group = "General Setting")]
+        public string InstanceName { get; set; }
+
+        [Parameter("Lot Size", DefaultValue = 0.1, Group = "General Setting")]
+        public double LotSize { get; set; }
+
+        [Parameter("Open Multiple Positions", DefaultValue = false, Group = "General Setting")]
+        public bool multiplePositions { get; set; }
+
+        [Parameter("Number of Multiple Positions", DefaultValue = 5, Group = "General Setting")]
+        public int multiplePositionsNumber { get; set; }
+
+        [Parameter("Enable Pos. Types", DefaultValue = true, Group = "General Setting")]
+        public bool difPosType { get; set; }
+
+        [Parameter("Net Profit Close", DefaultValue = 0, Group = "General Setting")]
+        public double netProfitClose { get; set; }
+
+        [Parameter("Net Loss Close(Equity)", DefaultValue = 0, Group = "General Setting")]
+        public double netLossClose { get; set; }
+
+        [Parameter("Take Profit Buffer Setting", DefaultValue = 0, Group = "General Setting")]
+        public double profitBuffer { get; set; }
+
+        [Parameter("Hedge", DefaultValue = false, Group = "General Setting")]
+        public bool Hedgee { get; set; }
+
+        //---------------------------------------------------------------------------------------------------------------------------
+        [Parameter("Enable ADX Indicator", DefaultValue = false, Group = "ADX Settings")]
+        public bool enableADX { get; set; }
+
+        [Parameter("ADX TimeFrame", Group = "ADX Settings")]
+        public TimeFrame adxTmFrm { get; set; }
+
+        [Parameter("ADX Entry period", DefaultValue = 14, Group = "ADX Settings")]
+        public int adxEntryPeriod { get; set; }
+
+        [Parameter("ADX Entry Threshold", DefaultValue = 30, Group = "ADX Settings")]
+        public int adxEntryThreshold { get; set; }
+
+        [Parameter("ADX Double/Nuclear Period", DefaultValue = 14, Group = "ADX Settings")]
+        public int adxDNPeriod { get; set; }
+
+        [Parameter("ADX Double/Nuclear/Armageddon Threshold", DefaultValue = 20, Group = "ADX Settings")]
+        public int adxDNThreshold { get; set; }
+
+//---------------------------------------------------------------------------------------------------------------------------        
+
+        [Parameter("K Slowing", DefaultValue = 1, MinValue = 0, Group = "Stochastics Common Settings")]
+        public int KSlowing { get; set; }
+
+        [Parameter("D Periods", DefaultValue = 1, MinValue = 0, Group = "Stochastics Common Settings")]
+        public int DPeriods { get; set; }
+
+        [Parameter("MA Type", DefaultValue = MovingAverageType.Simple, Group = "Stochastics Common Settings")]
+        public MovingAverageType MAType { get; set; }
+
+        [Parameter("Upper Level", DefaultValue = 80, MinValue = 0, Group = "Stochastics Common Settings")]
+        public int upperLevel { get; set; }
+
+        [Parameter("Lower Level", DefaultValue = 20, MinValue = 0, Group = "Stochastics Common Settings")]
+        public int lowerLevel { get; set; }
+
+        //---------------------------------------------------------------------------------------------------------------------------
+        [Parameter("ATR Period Common", DefaultValue = 14, Group = "ATR TakeProfit Settings")]
+        public int atrPeriod { get; set; }
+
+        [Parameter("ATR MV Type Common", DefaultValue = MovingAverageType.Simple, Group = "ATR TakeProfit Settings")]
+        public MovingAverageType atrMovingAv { get; set; }
+
+        [Parameter("Take Profit Position 1", DefaultValue = 0, Group = "ATR TakeProfit Settings")]
+        public TimeFrame Tp { get; set; }
+
+        [Parameter("Take Profit Position 2", DefaultValue = 0, Group = "ATR TakeProfit Settings")]
+        public TimeFrame Tp2 { get; set; }
+
+        [Parameter("Take Profit Position 3", DefaultValue = 0, Group = "ATR TakeProfit Settings")]
+        public TimeFrame Tp3 { get; set; }
+
+        [Parameter("Take Profit Position 4", DefaultValue = 0, Group = "ATR TakeProfit Settings")]
+        public TimeFrame Tp4 { get; set; }
+
+        [Parameter("Take Profit Position 5", DefaultValue = 0, Group = "ATR TakeProfit Settings")]
+        public TimeFrame Tp5 { get; set; }
+
+        [Parameter("Take Profit Position 6", DefaultValue = 0, Group = "ATR TakeProfit Settings")]
+        public TimeFrame Tp6 { get; set; }
+
+        [Parameter("Take Profit Position 7", DefaultValue = 0, Group = "ATR TakeProfit Settings")]
+        public TimeFrame Tp7 { get; set; }
+
+        [Parameter("Take Profit Position 8", DefaultValue = 0, Group = "ATR TakeProfit Settings")]
+        public TimeFrame Tp8 { get; set; }
+
+        [Parameter("Take Profit Position 9", DefaultValue = 0, Group = "ATR TakeProfit Settings")]
+        public TimeFrame Tp9 { get; set; }
+
+        [Parameter("Take Profit Position 10", DefaultValue = 0, Group = "ATR TakeProfit Settings")]
+        public TimeFrame Tp10 { get; set; }
+        //---------------------------------------------------------------------------------------------------------------------------
+        [Parameter("K Periods", DefaultValue = 3, MinValue = 0, Group = "Position 1 Settings")]
+        public int KPeriods { get; set; }
+
+        [Parameter("StopLoss Pips", DefaultValue = 0, Group = "Position 1 Settings")]
+        public double stoplossNormal { get; set; }
+
+        //---------------------------------------------------------------------------------------------------------------------------
+        [Parameter("K Periods", DefaultValue = 4, MinValue = 0, Group = "Position 2 Settings")]
+        public int KPeriodsDouble { get; set; }
+
+        [Parameter("multiplier", DefaultValue = 0, Group = "Position 2 Settings")]
+        public int DoublePosition { get; set; }
+
+        [Parameter("StopLoss Pips", DefaultValue = 0, Group = "Position 2 Settings")]
+        public double stoplossDouble { get; set; }
+
+        //---------------------------------------------------------------------------------------------------------------------------
+
+        [Parameter("K Periods", DefaultValue = 5, MinValue = 0, Group = "Position 3 Settings")]
+        public int KPeriodsNuclear { get; set; }
+
+        [Parameter("multiplier", DefaultValue = 0, Group = "Position 3 Settings")]
+        public int NuclearPosition { get; set; }
+
+        [Parameter("StopLoss Pips", DefaultValue = 0, Group = "Position 3 Settings")]
+        public double stoplossNuclear { get; set; }
+        //-----------------------------------------------------------------------------------------------------------------------------
+
+        [Parameter("K Periods", DefaultValue = 5, MinValue = 0, Group = "Position 4 Settings")]
+        public int KPeriodsArmageddon { get; set; }
+
+        [Parameter("multiplier", DefaultValue = 0, Group = "Position 4 Settings")]
+        public int ArmageddonPosition { get; set; }
+
+        [Parameter("StopLoss Pips", DefaultValue = 0, Group = "Position 4 Settings")]
+        public double stoploss { get; set; }
+
+        //-----------------------------------------------------------------------------------------------------------------------------
+
+        [Parameter("K Periods", DefaultValue = 5, MinValue = 0, Group = "Position 5 Settings")]
+        public int KPeriodsPosition5 { get; set; }
+
+        [Parameter("multiplier", DefaultValue = 0, Group = "Position 5 Settings")]
+        public int Position5 { get; set; }
+
+        [Parameter("StopLoss Pips", DefaultValue = 0, Group = "Position 5 Settings")]
+        public double stoploss5 { get; set; }
+        //-----------------------------------------------------------------------------------------------------------------------------
+
+        [Parameter("K Periods", DefaultValue = 5, MinValue = 0, Group = "Position 6 Settings")]
+        public int KPeriodsPosition6 { get; set; }
+
+        [Parameter("multiplier", DefaultValue = 0, Group = "Position 6 Settings")]
+        public int Position6 { get; set; }
+
+        [Parameter("StopLoss Pips", DefaultValue = 0, Group = "Position 6 Settings")]
+        public double stoploss6 { get; set; }
+        //-----------------------------------------------------------------------------------------------------------------------------
+
+        [Parameter("K Periods", DefaultValue = 5, MinValue = 0, Group = "Position 7 Settings")]
+        public int KPeriodsPosition7 { get; set; }
+
+        [Parameter("multiplier", DefaultValue = 0, Group = "Position 7 Settings")]
+        public int Position7 { get; set; }
+
+        [Parameter("StopLoss Pips", DefaultValue = 0, Group = "Position 7 Settings")]
+        public double stoploss7 { get; set; }
+        //-----------------------------------------------------------------------------------------------------------------------------
+
+        [Parameter("K Periods", DefaultValue = 5, MinValue = 0, Group = "Position 8 Settings")]
+        public int KPeriodsPosition8 { get; set; }
+
+        [Parameter("multiplier", DefaultValue = 0, Group = "Position 8 Settings")]
+        public int Position8 { get; set; }
+
+        [Parameter("StopLoss Pips", DefaultValue = 0, Group = "Position 8 Settings")]
+        public double stoploss8 { get; set; }
+        //-----------------------------------------------------------------------------------------------------------------------------
+
+        [Parameter("K Periods", DefaultValue = 5, MinValue = 0, Group = "Position 9 Settings")]
+        public int KPeriodsPosition9 { get; set; }
+
+        [Parameter("multiplier", DefaultValue = 0, Group = "Position 9 Settings")]
+        public int Position9 { get; set; }
+
+        [Parameter("StopLoss Pips", DefaultValue = 0, Group = "Position 9 Settings")]
+        public double stoploss9 { get; set; }
+        //-----------------------------------------------------------------------------------------------------------------------------
+
+        [Parameter("K Periods", DefaultValue = 5, MinValue = 0, Group = "Position 10 Settings")]
+        public int KPeriodsPosition10 { get; set; }
+
+        [Parameter("multiplier", DefaultValue = 0, Group = "Position 10 Settings")]
+        public int Position10 { get; set; }
+
+        [Parameter("StopLoss Pips", DefaultValue = 0, Group = "Position 10 Settings")]
+        public double stoploss10 { get; set; }
+        //------------------------------------------------------------------------------------------------------------------------------
+
+        [Parameter("Do not Trade from hour", DefaultValue = 0, Group = "Disable Opening Positions Timer (Server Time) Settings")]
+        public int timeFrom { get; set; }
+
+        [Parameter("Do not Trade To hour", DefaultValue = 0, Group = "Disable Opening Positions Timer (Server Time) Settings")]
+        public int timeTo { get; set; }
+
+//------------------------------------------------------------------------------------------------------------------------------        
+        public double tpPips = 0;
+        public double tp2Pips = 0;
+        public double tp3Pips = 0;
+        public double tp4Pips = 0;
+        public double tp5Pips = 0;
+        public double tp6Pips = 0;
+        public double tp7Pips = 0;
+        public double tp8Pips = 0;
+        public double tp9Pips = 0;
+        public double tp10Pips = 0;
+        public int mult = 0;
+//Constant Variables
+        public double volume1 = 0;
+        public double volume2 = 0;
+        public double volume3 = 0;
+        public double volume4 = 0;
+        public double volume5 = 0;
+        public double volume6 = 0;
+        public double volume7 = 0;
+        public double volume8 = 0;
+        public double volume9 = 0;
+        // multiple position calculator
+        public int multbuyy = 0;
+        public int multsell = 0;
+        public int multbuyOrsell = 0;
+        public double equityInitialProfit = 0;
+        public double equityCurrentProfit = 0;
+        public double equityInitialLoss = 0;
+        public double equityCurrentLoss = 0;
+        #endregion
+        #region Indicator Declarations
+
+        private StochasticOscillator _sto { get; set; }
+        private StochasticOscillator _stoDouble { get; set; }
+        private StochasticOscillator _stoNuclear { get; set; }
+        private StochasticOscillator _stoArmageddon { get; set; }
+        private StochasticOscillator _stoPosition5 { get; set; }
+        private StochasticOscillator _stoPosition6 { get; set; }
+        private StochasticOscillator _stoPosition7 { get; set; }
+        private StochasticOscillator _stoPosition8 { get; set; }
+        private StochasticOscillator _stoPosition9 { get; set; }
+        private StochasticOscillator _stoPosition10 { get; set; }
+        private DirectionalMovementSystem _adxEntry { get; set; }
+        private DirectionalMovementSystem _adxDN { get; set; }
+        private AverageTrueRange _atr { get; set; }
+        private AverageTrueRange _atr2 { get; set; }
+        private AverageTrueRange _atr3 { get; set; }
+        private AverageTrueRange _atr4 { get; set; }
+        private AverageTrueRange _atr5 { get; set; }
+        private AverageTrueRange _atr6 { get; set; }
+        private AverageTrueRange _atr7 { get; set; }
+        private AverageTrueRange _atr8 { get; set; }
+        private AverageTrueRange _atr9 { get; set; }
+        private AverageTrueRange _atr10 { get; set; }
+
+        private Bars series;
+        #endregion
+        #region Ctrader Events
+        protected override void OnStart()
+        {
+            equityInitialLoss = Account.Equity;
+            equityInitialProfit = Account.Equity;
+            var Source = MarketData.GetBars(adxTmFrm);
+            _sto = Indicators.StochasticOscillator(KPeriods, KSlowing, DPeriods, MAType);
+            _stoDouble = Indicators.StochasticOscillator(KPeriodsDouble, KSlowing, DPeriods, MAType);
+            _stoNuclear = Indicators.StochasticOscillator(KPeriodsNuclear, KSlowing, DPeriods, MAType);
+            _stoArmageddon = Indicators.StochasticOscillator(KPeriodsArmageddon, KSlowing, DPeriods, MAType);
+            _stoPosition5 = Indicators.StochasticOscillator(KPeriodsPosition5, KSlowing, DPeriods, MAType);
+            _stoPosition6 = Indicators.StochasticOscillator(KPeriodsPosition6, KSlowing, DPeriods, MAType);
+            _stoPosition7 = Indicators.StochasticOscillator(KPeriodsPosition7, KSlowing, DPeriods, MAType);
+            _stoPosition8 = Indicators.StochasticOscillator(KPeriodsPosition8, KSlowing, DPeriods, MAType);
+            _stoPosition9 = Indicators.StochasticOscillator(KPeriodsPosition9, KSlowing, DPeriods, MAType);
+            _stoPosition10 = Indicators.StochasticOscillator(KPeriodsPosition10, KSlowing, DPeriods, MAType);
+            _adxEntry = Indicators.DirectionalMovementSystem(Source, adxEntryPeriod);
+            _adxDN = Indicators.DirectionalMovementSystem(Source, adxDNPeriod);
+
+            volume1 = Symbol.QuantityToVolumeInUnits(LotSize * DoublePosition);
+            volume2 = Symbol.QuantityToVolumeInUnits(LotSize * NuclearPosition);
+            volume3 = Symbol.QuantityToVolumeInUnits(LotSize * ArmageddonPosition);
+            volume4 = Symbol.QuantityToVolumeInUnits(LotSize * Position5);
+            volume5 = Symbol.QuantityToVolumeInUnits(LotSize * Position6);
+            volume6 = Symbol.QuantityToVolumeInUnits(LotSize * Position7);
+            volume7 = Symbol.QuantityToVolumeInUnits(LotSize * Position8);
+            volume8 = Symbol.QuantityToVolumeInUnits(LotSize * Position9);
+            volume9 = Symbol.QuantityToVolumeInUnits(LotSize * Position10);
+
+            int symbDigit = Symbol.Digits;
+            if (symbDigit == 3)
+                mult = 100;
+            else if (symbDigit == 5 || symbDigit == 4)
+                mult = 10000;
+            else if (symbDigit == 2)
+                mult = 10;
+            else
+                mult = 0;
+            double calc = multiplePositionsNumber / 2;
+            bool chek = (multiplePositionsNumber % 2) == 0;
+            if (chek == false)
+            {
+                multbuyy = Convert.ToInt32(Math.Floor(calc));
+                multsell = multbuyy;
+                multbuyOrsell = 1;
+            }
+            else
+            {
+                multbuyy = Convert.ToInt32(calc);
+                multsell = Convert.ToInt32(calc);
+            }
+
+
+        }
+        protected override void OnBar()
+        {
+            if (difPosType)
+            {
+                managePositions();
+            }
+        }
+        protected override void OnTick()
+        {
+            openingPositions();
+            closePositionMain();
+            equityCurrentProfit = Account.Equity;
+            if (netProfitClose != 0 && (equityCurrentProfit - equityInitialProfit) >= netProfitClose)
+            {
+                foreach (var position in Positions)
+                {
+                    position.Close();
+                }
+                Print("Profit reached the limit specified, All positions are closed.");
+                equityInitialProfit = Account.Equity;
+            }
+            //netLossClose
+            equityCurrentLoss = Account.Equity;
+            if (netLossClose != 0 && (equityInitialLoss - equityCurrentLoss) >= netLossClose)
+            {
+                Print("Loss of " + netLossClose + " from the last scored loss time.");
+                equityInitialLoss = Account.Equity;
+            }
+        }
+        /*
+        protected override void OnStop()
+        {
+            // Put your deinitialization logic here
+        }
+        */
+        #endregion
+        #region Position management
+
+        // first check if there are open positions and if the double buy/sell and nuclear buy/sell criteria are met
+        // Then double or triple the position with 
+
+        //------------------------------------------------Update / Modify Position--------------------------------------------------------------
+
+        private void managePositions()
+        {
+
+            // Position Status Defines which type of status the position is Normal/double/nuclear/Armageddon
+            int posStat = 0;
+            double posType = 0;
+            var p = Positions.FindAll(InstanceName, SymbolName);
+            foreach (var pos in p)
+            {
+                posStat = 0;
+                posType = 0;
+                //  Print("Position volume: " + pos.VolumeInUnits + ", Initial pos volume: " + Symbol.QuantityToVolumeInUnits(LotSize));
+                posType = Convert.ToDouble(pos.VolumeInUnits) / Convert.ToDouble(Symbol.QuantityToVolumeInUnits(LotSize));
+
+                if (posType == 1)
+                {
+                    posStat = 1;
+                }
+                if (posType == DoublePosition)
+                {
+                    posStat = 2;
+                }
+                if (posType > DoublePosition && posType < ArmageddonPosition)
+                {
+                    posStat = 3;
+                    //arma
+                }
+                if (posType >= ArmageddonPosition && posType < Position5)
+                {
+                    posStat = 4;
+                    //pos5
+                }
+                if (posType >= Position5 && posType < Position6)
+                {
+                    posStat = 5;
+                    //pos6
+                }
+                if (posType >= Position6 && posType < Position7)
+                {
+                    posStat = 6;
+                    //pos7
+                }
+                if (posType >= Position7 && posType < Position8)
+                {
+                    posStat = 7;
+                    //pos8
+                }
+                if (posType >= Position8 && posType < Position9)
+                {
+                    posStat = 8;
+                    //pos9
+                }
+                if (posType >= Position9 && posType < Position10)
+                {
+                    posStat = 9;
+                    //pos10
+                }
+                if (posStat != 0)
+                {
+                    updatePositionMod(pos, posStat);
+
+                }
+            }
+        }
+
+        private void updatePositionMod(Position pos, int posStat)
+        {
+            // int k = 0;
+            //  Print("Position Type2 ID : " + pos.Id + ", stat: " + posStat.ToString());
+            if (posStat == 1)
+            {
+// Normal position
+                if ((Bars.Count - Int32.Parse(pos.Comment.Trim())) < KPeriodsDouble)
+                {
+                    return;
+                }
+                if (enableADX)
+                {
+                    // If ADX is enabled               
+                    if (pos.TradeType == TradeType.Buy && DoublePosition != 0)
+                    {
+                        if (_stoDouble.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume1);
+                            Print("Double Position Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            Print("Bars difference ID: " + pos.Id + ", difference: " + (Bars.Count - Int32.Parse(pos.Comment.Trim())));
+                            updateClosePosition(pos, 2);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && DoublePosition != 0)
+                    {
+                        if (_stoDouble.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume1);
+                            Print("Double Position Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            Print("Bars difference ID: " + pos.Id + ", difference: " + (Bars.Count - Int32.Parse(pos.Comment.Trim())));
+                            updateClosePosition(pos, 2);
+                        }
+                    }
+                }
+                else
+                {
+                    // If ADX is Disabled                
+                    if (pos.TradeType == TradeType.Buy && DoublePosition != 0)
+                    {
+                        if (_stoDouble.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel)
+                        {
+                            ModifyPosition(pos, volume1);
+                            Print("Double Position Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            Print("Bars difference ID: " + pos.Id + ", difference: " + (Bars.Count - Int32.Parse(pos.Comment.Trim())));
+                            updateClosePosition(pos, 2);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && DoublePosition != 0)
+                    {
+                        if (_stoDouble.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel)
+                        {
+                            ModifyPosition(pos, volume1);
+                            Print("Double Position Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            Print("Bars difference ID: " + pos.Id + ", difference: " + (Bars.Count - Int32.Parse(pos.Comment.Trim())));
+                            updateClosePosition(pos, 2);
+                        }
+                    }
+                }
+            }
+            else if (posStat == 2)
+            {
+                // Double Position
+                if ((Bars.Count - Int32.Parse(pos.Comment.Trim())) < KPeriodsNuclear)
+                {
+                    return;
+                }
+                if (enableADX)
+                {
+                    // If ADX is enabled               
+                    if (pos.TradeType == TradeType.Buy && NuclearPosition != 0)
+                    {
+                        if (_stoNuclear.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume2);
+                            Print("Nuclear Position Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 3);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && NuclearPosition != 0)
+                    {
+                        if (_stoNuclear.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume2);
+                            Print("Nuclear Position Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 3);
+                        }
+                    }
+                }
+                else
+                {
+                    // If ADX is Disabled                
+                    if (pos.TradeType == TradeType.Buy && NuclearPosition != 0)
+                    {
+                        if (_stoNuclear.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel)
+                        {
+                            ModifyPosition(pos, volume2);
+                            Print("Nuclear Position Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 3);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && NuclearPosition != 0)
+                    {
+                        if (_stoNuclear.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel)
+                        {
+                            ModifyPosition(pos, volume2);
+                            Print("Nuclear Position Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 3);
+
+                        }
+                    }
+                }
+
+            }
+            else if (posStat == 3)
+            {
+
+                                /* Nuclear
+if (pos.StopLoss >= 0.0001)
+{
+
+}
+else*/
+if ((Bars.Count - Int32.Parse(pos.Comment.Trim())) < KPeriodsArmageddon)
+                {
+                    return;
+                }
+                if (enableADX)
+                {
+                    // If ADX is enabled               
+                    if (pos.TradeType == TradeType.Buy && ArmageddonPosition != 0)
+                    {
+
+                        if (_stoArmageddon.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume3);
+                            Print("Armageddon Position Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 4);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && ArmageddonPosition != 0)
+                    {
+
+                        if (_stoArmageddon.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume3);
+                            Print("Armageddon Position Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 4);
+                        }
+                    }
+                }
+                else
+                {
+                    // If ADX is Disabled                
+                    if (pos.TradeType == TradeType.Buy && ArmageddonPosition != 0)
+                    {
+                        //  Print("Armageddon Position enter test");
+                        if (_stoArmageddon.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel)
+                        {
+                            ModifyPosition(pos, volume3);
+                            Print("Armageddon Position Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 4);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && ArmageddonPosition != 0)
+                    {
+                        //   Print("Armageddon Position enter test");
+                        if (_stoArmageddon.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel)
+                        {
+                            ModifyPosition(pos, volume3);
+                            Print("Armageddon Position Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 4);
+                        }
+                    }
+                }
+            }
+            else if (posStat == 4)
+            {
+
+                                /* Nuclear
+if (pos.StopLoss >= 0.0001)
+{
+
+}
+else*/
+if ((Bars.Count - Int32.Parse(pos.Comment.Trim())) < KPeriodsPosition5)
+                {
+                    return;
+                }
+                if (enableADX)
+                {
+                    // If ADX is enabled               
+                    if (pos.TradeType == TradeType.Buy && Position5 != 0)
+                    {
+
+                        if (_stoPosition5.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume4);
+                            Print("Position 5 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 5);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && Position5 != 0)
+                    {
+
+                        if (_stoPosition5.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume4);
+                            Print("Position 5 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 5);
+                        }
+                    }
+                }
+                else
+                {
+                    // If ADX is Disabled                
+                    if (pos.TradeType == TradeType.Buy && Position5 != 0)
+                    {
+                        //  Print("Armageddon Position enter test");
+                        if (_stoPosition5.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel)
+                        {
+                            ModifyPosition(pos, volume4);
+                            Print("Position 5 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 5);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && Position5 != 0)
+                    {
+                        //   Print("Armageddon Position enter test");
+                        if (_stoPosition5.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel)
+                        {
+                            ModifyPosition(pos, volume4);
+                            Print("Position 5 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 5);
+                        }
+                    }
+                }
+            }
+            else if (posStat == 5)
+            {
+
+                                /* Nuclear
+if (pos.StopLoss >= 0.0001)
+{
+
+}
+else*/
+if ((Bars.Count - Int32.Parse(pos.Comment.Trim())) < KPeriodsPosition6)
+                {
+                    return;
+                }
+                if (enableADX)
+                {
+                    // If ADX is enabled               
+                    if (pos.TradeType == TradeType.Buy && Position6 != 0)
+                    {
+
+                        if (_stoPosition6.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume5);
+                            Print("Position 6 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 6);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && Position6 != 0)
+                    {
+
+                        if (_stoPosition6.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume5);
+                            Print("Position 6 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 6);
+                        }
+                    }
+                }
+                else
+                {
+                    // If ADX is Disabled                
+                    if (pos.TradeType == TradeType.Buy && Position6 != 0)
+                    {
+                        //  Print("Armageddon Position enter test");
+                        if (_stoPosition6.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel)
+                        {
+                            ModifyPosition(pos, volume5);
+                            Print("Position 6 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 6);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && Position6 != 0)
+                    {
+                        //   Print("Armageddon Position enter test");
+                        if (_stoPosition6.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel)
+                        {
+                            ModifyPosition(pos, volume5);
+                            Print("Position 6 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 6);
+                        }
+                    }
+                }
+            }
+            else if (posStat == 6)
+            {
+
+                                /* Nuclear
+if (pos.StopLoss >= 0.0001)
+{
+
+}
+else*/
+if ((Bars.Count - Int32.Parse(pos.Comment.Trim())) < KPeriodsPosition7)
+                {
+                    return;
+                }
+                if (enableADX)
+                {
+                    // If ADX is enabled               
+                    if (pos.TradeType == TradeType.Buy && Position7 != 0)
+                    {
+
+                        if (_stoPosition7.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume6);
+                            Print("Position 7 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 7);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && Position7 != 0)
+                    {
+
+                        if (_stoPosition7.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume6);
+                            Print("Position 7 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 7);
+                        }
+                    }
+                }
+                else
+                {
+                    // If ADX is Disabled                
+                    if (pos.TradeType == TradeType.Buy && Position7 != 0)
+                    {
+                        //  Print("Armageddon Position enter test");
+                        if (_stoPosition7.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel)
+                        {
+                            ModifyPosition(pos, volume6);
+                            Print("Position 7 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 7);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && Position7 != 0)
+                    {
+                        //   Print("Armageddon Position enter test");
+                        if (_stoPosition7.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel)
+                        {
+                            ModifyPosition(pos, volume6);
+                            Print("Position 7 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 7);
+                        }
+                    }
+                }
+            }
+            else if (posStat == 7)
+            {
+
+                                /* Nuclear
+if (pos.StopLoss >= 0.0001)
+{
+
+}
+else*/
+if ((Bars.Count - Int32.Parse(pos.Comment.Trim())) < KPeriodsPosition8)
+                {
+                    return;
+                }
+                if (enableADX)
+                {
+                    // If ADX is enabled               
+                    if (pos.TradeType == TradeType.Buy && Position8 != 0)
+                    {
+
+                        if (_stoPosition8.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume7);
+                            Print("Position 8 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 8);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && Position8 != 0)
+                    {
+
+                        if (_stoPosition8.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume7);
+                            Print("Position 8 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 8);
+                        }
+                    }
+                }
+                else
+                {
+                    // If ADX is Disabled                
+                    if (pos.TradeType == TradeType.Buy && Position8 != 0)
+                    {
+                        //  Print("Armageddon Position enter test");
+                        if (_stoPosition8.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel)
+                        {
+                            ModifyPosition(pos, volume7);
+                            Print("Position 8 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 8);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && Position8 != 0)
+                    {
+                        //   Print("Armageddon Position enter test");
+                        if (_stoPosition8.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel)
+                        {
+                            ModifyPosition(pos, volume7);
+                            Print("Position 8 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 8);
+                        }
+                    }
+                }
+            }
+            else if (posStat == 8)
+            {
+
+                                /* Nuclear
+if (pos.StopLoss >= 0.0001)
+{
+
+}
+else*/
+if ((Bars.Count - Int32.Parse(pos.Comment.Trim())) < KPeriodsPosition9)
+                {
+                    return;
+                }
+                if (enableADX)
+                {
+                    // If ADX is enabled               
+                    if (pos.TradeType == TradeType.Buy && Position9 != 0)
+                    {
+
+                        if (_stoPosition9.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume8);
+                            Print("Position 9 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 9);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && Position9 != 0)
+                    {
+
+                        if (_stoPosition9.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume8);
+                            Print("Position 9 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 9);
+                        }
+                    }
+                }
+                else
+                {
+                    // If ADX is Disabled                
+                    if (pos.TradeType == TradeType.Buy && Position9 != 0)
+                    {
+                        //  Print("Armageddon Position enter test");
+                        if (_stoPosition9.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel)
+                        {
+                            ModifyPosition(pos, volume8);
+                            Print("Position 9 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 9);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && Position9 != 0)
+                    {
+                        //   Print("Armageddon Position enter test");
+                        if (_stoPosition9.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel)
+                        {
+                            ModifyPosition(pos, volume8);
+                            Print("Position 9 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 9);
+                        }
+                    }
+                }
+            }
+            else if (posStat == 9)
+            {
+
+                                /* Nuclear
+if (pos.StopLoss >= 0.0001)
+{
+
+}
+else*/
+if ((Bars.Count - Int32.Parse(pos.Comment.Trim())) < KPeriodsPosition10)
+                {
+                    return;
+                }
+                if (enableADX)
+                {
+                    // If ADX is enabled               
+                    if (pos.TradeType == TradeType.Buy && Position10 != 0)
+                    {
+
+                        if (_stoPosition10.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume9);
+                            Print("Position 10 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 10);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && Position10 != 0)
+                    {
+
+                        if (_stoPosition10.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel && _adxDN.ADX.LastValue <= adxDNThreshold)
+                        {
+                            ModifyPosition(pos, volume9);
+                            Print("Position 10 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 10);
+                        }
+                    }
+                }
+                else
+                {
+                    // If ADX is Disabled                
+                    if (pos.TradeType == TradeType.Buy && Position10 != 0)
+                    {
+                        //  Print("Armageddon Position enter test");
+                        if (_stoPosition10.PercentK.LastValue <= lowerLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue <= lowerLevel)
+                        {
+                            ModifyPosition(pos, volume9);
+                            Print("Position 10 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 10);
+                        }
+                    }
+                    else if (pos.TradeType == TradeType.Sell && Position10 != 0)
+                    {
+                        //   Print("Armageddon Position enter test");
+                        if (_stoPosition10.PercentK.LastValue >= upperLevel && pos.NetProfit <= 5 && _sto.PercentK.LastValue >= upperLevel)
+                        {
+                            ModifyPosition(pos, volume9);
+                            Print("Position 10 Activated for Position ID: " + pos.Id + ", Volume: " + pos.VolumeInUnits);
+                            updateClosePosition(pos, 10);
+                        }
+                    }
+                }
+            }
+        }
+        #endregion
+        #region Open Position
+        // ------------------------------------Open Positions-----------------------------------------------------------------------
+        private void openingPositions()
+        {
+            if (DateTime.Now.Hour >= timeFrom && DateTime.Now.Hour <= timeTo)
+            {
+                return;
+            }
+            if (NumberOfPos() >= multiplePositionsNumber + 1 && multiplePositions)
+            {
+                return;
+            }
+
+            if (enableADX)
+            {
+                if (_sto.PercentK.LastValue >= upperLevel && _adxEntry.ADX.LastValue >= adxEntryThreshold)
+                {
+                    try
+                    {
+                        if (multiplePositions && NumberOfPos(TradeType.Sell) <= (multsell + multbuyOrsell) && checkLastEntryTime(TradeType.Sell))
+                        {
+                            Print("Sell Position Opened");
+                            OpenPosition(TradeType.Sell);
+                        }
+                        else if (!IsPositionOpenByType(TradeType.Sell))
+                        {
+                            Print("Sell Position Opened");
+                            OpenPosition(TradeType.Sell);
+                        }
+
+                    } catch
+                    {
+                        if (!IsPositionOpenByType(TradeType.Sell))
+                        {
+                            Print("Sell Position Opened");
+                            OpenPosition(TradeType.Sell);
+                        }
+                    }
+                }
+
+                // && _sto.PercentK.Last(2) > lowerLevel && _sto.PercentD.Last(2) > lowerLevel)
+                if (_sto.PercentK.LastValue <= lowerLevel && _adxEntry.ADX.LastValue >= adxEntryThreshold)
+                {
+                    try
+                    {
+                        if (multiplePositions && NumberOfPos(TradeType.Buy) <= (multbuyy + multbuyOrsell) && checkLastEntryTime(TradeType.Buy))
+                        {
+                            Print("Buy Position Opened");
+                            OpenPosition(TradeType.Buy);
+                        }
+                        else if (!IsPositionOpenByType(TradeType.Buy))
+                        {
+                            Print("Buy Position Opened");
+                            OpenPosition(TradeType.Buy);
+                        }
+
+                    } catch
+                    {
+                        if (!IsPositionOpenByType(TradeType.Buy))
+                        {
+                            Print("Buy Position Opened");
+                            OpenPosition(TradeType.Buy);
+                        }
+                    }
+                }
+            }
+
+            else
+            {
+                if (_sto.PercentK.LastValue >= upperLevel)
+                {
+                    try
+                    {
+                        if (multiplePositions && NumberOfPos(TradeType.Sell) <= (multsell + multbuyOrsell) && checkLastEntryTime(TradeType.Sell))
+                        {
+                            Print("Sell Position Opened");
+                            OpenPosition(TradeType.Sell);
+                        }
+                        else if (!IsPositionOpenByType(TradeType.Sell))
+                        {
+                            Print("Sell Position Opened");
+                            OpenPosition(TradeType.Sell);
+                        }
+
+                    } catch
+                    {
+                        if (!IsPositionOpenByType(TradeType.Sell))
+                        {
+                            Print("Sell Position Opened");
+                            OpenPosition(TradeType.Sell);
+                        }
+                    }
+                }
+
+                // && _sto.PercentK.Last(2) > lowerLevel && _sto.PercentD.Last(2) > lowerLevel)
+                if (_sto.PercentK.LastValue <= lowerLevel)
+                {
+                    try
+                    {
+                        if (multiplePositions && NumberOfPos(TradeType.Buy) <= (multbuyy + multbuyOrsell) && checkLastEntryTime(TradeType.Buy))
+                        {
+                            Print("Buy Position Opened");
+                            OpenPosition(TradeType.Buy);
+                        }
+                        else if (!IsPositionOpenByType(TradeType.Buy))
+                        {
+                            Print("Buy Position Opened");
+                            OpenPosition(TradeType.Buy);
+                        }
+
+                    } catch
+                    {
+                        if (!IsPositionOpenByType(TradeType.Buy))
+                        {
+                            Print("Buy Position Opened");
+                            OpenPosition(TradeType.Buy);
+                        }
+                    }
+                }
+            }
+
+
+        }
+
+        private bool checkLastEntryTime(TradeType typ)
+        {
+            // check if the last opened position according to trade type is not on the same candle or bar
+            var dt = Positions.Where(x => x.TradeType == typ).OrderByDescending(x => x.EntryTime).First().EntryTime;
+            var tt = Bars.OpenTimes.LastValue;
+            if (dt < tt)
+            {
+                return true;
+            }
+            return false;
+        }
+        private void OpenPosition(TradeType type)
+        {
+            series = MarketData.GetBars(Tp);
+            _atr = Indicators.AverageTrueRange(series, atrPeriod, atrMovingAv);
+            tpPips = Math.Round((_atr.Result.LastValue * mult), 0);
+            // Reduce the buffer percentage---------------------------------
+            if (profitBuffer != 0)
+                tpPips = tpPips - ((profitBuffer * tpPips) / 100);
+            double volume = Symbol.QuantityToVolumeInUnits(LotSize);
+            ExecuteMarketOrder(type, this.SymbolName, volume, InstanceName, 0, tpPips, "" + Bars.Count);
+            if (type == TradeType.Buy && Hedgee)
+            {
+                CkeckandOpenHedge(TradeType.Sell);
+            }
+            else if (type == TradeType.Sell && Hedgee)
+            {
+                CkeckandOpenHedge(TradeType.Buy);
+            }
+        }
+        private void CkeckandOpenHedge(TradeType type)
+        {
+            series = MarketData.GetBars(Tp);
+            _atr = Indicators.AverageTrueRange(series, atrPeriod, atrMovingAv);
+            var tpPips = Math.Round((_atr.Result.LastValue * mult), 0);
+            if (profitBuffer != 0)
+                tpPips = tpPips - ((profitBuffer * tpPips) / 100);
+
+            if (!IsPositionOpenByType(type))
+            {
+                double volume = Symbol.QuantityToVolumeInUnits(LotSize);
+                ExecuteMarketOrder(type, this.SymbolName, volume, InstanceName, 0, tpPips, "" + Bars.Count);
+            }
+            else
+            {
+                int fla = 0;
+                var p = Positions.FindAll(InstanceName, SymbolName, type);
+                foreach (Position positions in p)
+                {
+                    if (type == TradeType.Buy && positions.EntryPrice < (Ask + (tpPips * Symbol.PipValue)))
+                    {
+                        fla = 1;
+                    }
+                    else if (type == TradeType.Sell && positions.EntryPrice > (Bid - (tpPips * Symbol.PipValue)))
+                    {
+                        fla = 1;
+                    }
+                }
+                if (fla == 0)
+                {
+                    double volume = Symbol.QuantityToVolumeInUnits(LotSize);
+                    ExecuteMarketOrder(type, this.SymbolName, volume, InstanceName, 0, tpPips, "" + Bars.Count);
+
+                }
+
+            }
+
+
+        }
+        #endregion
+        #region Close Position
+        private void updateClosePosition(Position pos, int posStat)
+        {
+            // extract tp values for each position status from comments which was set at the opening of the position
+            //   var tpComm = pos.Comment;
+            // posStat represents the state of the position whether normal, double, nuclear or Armageddon simultaneously
+                        /* if (posStat == 1)
+            {
+                pos.ModifyTakeProfitPips(tpPips);
+                Print("Position ID: " + pos.Id + ", Modified Normal Take Profit to: " + pos.TakeProfit);
+            }
+            else */
+if (posStat == 2)
+            {
+                series = MarketData.GetBars(Tp2);
+                _atr2 = Indicators.AverageTrueRange(series, atrPeriod, atrMovingAv);
+                tp2Pips = Math.Round((_atr2.Result.LastValue * mult), 0);
+                // Reduce the buffer percentage
+                if (profitBuffer != 0)
+                    tp2Pips = tp2Pips - ((profitBuffer * tp2Pips) / 100);
+                pos.ModifyTakeProfitPips(tp2Pips);
+                //  pos.ModifyStopLossPips(stoplossDouble);
+                Print("Position ID: " + pos.Id + ", Modified Double Take Profit to: " + pos.TakeProfit + ", SL: " + pos.StopLoss);
+            }
+            else if (posStat == 3)
+            {
+                series = MarketData.GetBars(Tp3);
+                _atr3 = Indicators.AverageTrueRange(series, atrPeriod, atrMovingAv);
+                tp3Pips = Math.Round((_atr3.Result.LastValue * mult), 0);
+                // Reduce the buffer percentage---------------------------------
+                if (profitBuffer != 0)
+                    tp3Pips = tp3Pips - ((profitBuffer * tp3Pips) / 100);
+                pos.ModifyTakeProfitPips(tp3Pips);
+                //  pos.ModifyStopLossPips(stoplossNuclear);
+                Print("Position ID: " + pos.Id + ", Modified Nuclear Take Profit to: " + pos.TakeProfit + ", SL: " + pos.StopLoss);
+            }
+            else if (posStat == 4)
+            {
+                series = MarketData.GetBars(Tp4);
+                _atr4 = Indicators.AverageTrueRange(series, atrPeriod, atrMovingAv);
+                tp4Pips = Math.Round((_atr4.Result.LastValue * mult), 0);
+                // Reduce the buffer percentage---------------------------------
+                if (profitBuffer != 0)
+                    tp4Pips = tp4Pips - ((profitBuffer * tp4Pips) / 100);
+                pos.ModifyTakeProfitPips(tp4Pips);
+                // pos.ModifyStopLossPips(stoploss);
+                Print("Position ID: " + pos.Id + ", Modified Armageddon Take Profit to: " + pos.TakeProfit + " and Stop Loss to: " + pos.StopLoss);
+            }
+            else if (posStat == 5)
+            {
+                series = MarketData.GetBars(Tp5);
+                _atr5 = Indicators.AverageTrueRange(series, atrPeriod, atrMovingAv);
+                tp5Pips = Math.Round((_atr5.Result.LastValue * mult), 0);
+                // Reduce the buffer percentage---------------------------------
+                if (profitBuffer != 0)
+                    tp5Pips = tp5Pips - ((profitBuffer * tp5Pips) / 100);
+                pos.ModifyTakeProfitPips(tp5Pips);
+                // pos.ModifyStopLossPips(stoploss);
+                Print("Position ID: " + pos.Id + ", Modified Position 5 Take Profit to: " + pos.TakeProfit + " and Stop Loss to: " + pos.StopLoss);
+            }
+            else if (posStat == 6)
+            {
+                series = MarketData.GetBars(Tp6);
+                _atr6 = Indicators.AverageTrueRange(series, atrPeriod, atrMovingAv);
+                tp6Pips = Math.Round((_atr6.Result.LastValue * mult), 0);
+                // Reduce the buffer percentage---------------------------------
+                if (profitBuffer != 0)
+                    tp6Pips = tp6Pips - ((profitBuffer * tp6Pips) / 100);
+                pos.ModifyTakeProfitPips(tp6Pips);
+                // pos.ModifyStopLossPips(stoploss);
+                Print("Position ID: " + pos.Id + ", Modified Position 6 Take Profit to: " + pos.TakeProfit + " and Stop Loss to: " + pos.StopLoss);
+            }
+            else if (posStat == 7)
+            {
+                series = MarketData.GetBars(Tp7);
+                _atr7 = Indicators.AverageTrueRange(series, atrPeriod, atrMovingAv);
+                tp7Pips = Math.Round((_atr7.Result.LastValue * mult), 0);
+                // Reduce the buffer percentage---------------------------------
+                if (profitBuffer != 0)
+                    tp7Pips = tp7Pips - ((profitBuffer * tp7Pips) / 100);
+                pos.ModifyTakeProfitPips(tp7Pips);
+                // pos.ModifyStopLossPips(stoploss);
+                Print("Position ID: " + pos.Id + ", Modified Position 7 Take Profit to: " + pos.TakeProfit + " and Stop Loss to: " + pos.StopLoss);
+            }
+            else if (posStat == 8)
+            {
+                series = MarketData.GetBars(Tp8);
+                _atr8 = Indicators.AverageTrueRange(series, atrPeriod, atrMovingAv);
+                tp8Pips = Math.Round((_atr8.Result.LastValue * mult), 0);
+                // Reduce the buffer percentage---------------------------------
+                if (profitBuffer != 0)
+                    tp8Pips = tp8Pips - ((profitBuffer * tp8Pips) / 100);
+                pos.ModifyTakeProfitPips(tp8Pips);
+                // pos.ModifyStopLossPips(stoploss);
+                Print("Position ID: " + pos.Id + ", Modified Position 8 Take Profit to: " + pos.TakeProfit + " and Stop Loss to: " + pos.StopLoss);
+            }
+            else if (posStat == 9)
+            {
+                series = MarketData.GetBars(Tp9);
+                _atr9 = Indicators.AverageTrueRange(series, atrPeriod, atrMovingAv);
+                tp9Pips = Math.Round((_atr9.Result.LastValue * mult), 0);
+                // Reduce the buffer percentage---------------------------------
+                if (profitBuffer != 0)
+                    tp9Pips = tp9Pips - ((profitBuffer * tp9Pips) / 100);
+                pos.ModifyTakeProfitPips(tp9Pips);
+                // pos.ModifyStopLossPips(stoploss);
+                Print("Position ID: " + pos.Id + ", Modified Position 9 Take Profit to: " + pos.TakeProfit + " and Stop Loss to: " + pos.StopLoss);
+            }
+            else if (posStat == 10)
+            {
+                series = MarketData.GetBars(Tp10);
+                _atr10 = Indicators.AverageTrueRange(series, atrPeriod, atrMovingAv);
+                tp10Pips = Math.Round((_atr10.Result.LastValue * mult), 0);
+                // Reduce the buffer percentage---------------------------------
+                if (profitBuffer != 0)
+                    tp10Pips = tp10Pips - ((profitBuffer * tp10Pips) / 100);
+                pos.ModifyTakeProfitPips(tp10Pips);
+                // pos.ModifyStopLossPips(stoploss);
+                Print("Position ID: " + pos.Id + ", Modified Position 10 Take Profit to: " + pos.TakeProfit + " and Stop Loss to: " + pos.StopLoss);
+            }
+        }
+        private void closePositionMain()
+        {
+            //  int posStat = 0;
+            double posType = 0;
+            var p = Positions.FindAll(InstanceName, SymbolName);
+            foreach (var pos in p)
+            {
+                // posStat = 0;
+                posType = 0;
+                posType = Convert.ToDouble(pos.VolumeInUnits) / Convert.ToDouble(Symbol.QuantityToVolumeInUnits(LotSize));
+
+                if (posType == 1)
+                {
+                    if (pos.Pips <= (stoplossNormal - (stoplossNormal * 2)) && stoplossNormal != 0)
+                    {
+                        Print("Closing Normal position ID: " + pos.Id + " with Stoploss pips" + pos.Pips);
+                        ClosePosition(pos);
+                    }
+                }
+                if (posType == DoublePosition && DoublePosition != 0)
+                {
+                    if (pos.Pips <= (stoplossDouble - (stoplossDouble * 2)) && stoplossDouble != 0)
+                    {
+                        Print("Closing Double position ID: " + pos.Id + " with Stoploss pips" + pos.Pips);
+                        ClosePosition(pos);
+                    }
+                }
+                if (posType > DoublePosition && posType < ArmageddonPosition && NuclearPosition != 0)
+                {
+                    if (pos.Pips <= (stoplossNuclear - (stoplossNuclear * 2)) && stoplossNuclear != 0)
+                    {
+                        Print("Closing Nuclear position ID: " + pos.Id + " with Stoploss pips" + pos.Pips);
+                        ClosePosition(pos);
+                    }
+                }
+                if (posType >= ArmageddonPosition && posType < Position5 && ArmageddonPosition != 0)
+                {
+                    if (pos.Pips <= (stoploss - (stoploss * 2)) && stoploss != 0)
+                    {
+                        Print("Closing Armageddon position ID: " + pos.Id + " with Stoploss pips" + pos.Pips);
+                        ClosePosition(pos);
+                    }
+                }
+                if (posType >= Position5 && posType < Position6 && Position5 != 0)
+                {
+                    if (pos.Pips <= (stoploss5 - (stoploss5 * 2)) && stoploss5 != 0)
+                    {
+                        Print("Position5 Closing position ID: " + pos.Id + " with Stoploss pips" + pos.Pips);
+                        ClosePosition(pos);
+                    }
+                }
+                if (posType >= Position6 && posType < Position7 && Position6 != 0)
+                {
+                    if (pos.Pips <= (stoploss6 - (stoploss6 * 2)) && stoploss6 != 0)
+                    {
+                        Print("Position6 Closing position ID: " + pos.Id + " with Stoploss pips" + pos.Pips);
+                        ClosePosition(pos);
+                    }
+                }
+                if (posType >= Position7 && posType < Position8 && Position7 != 0)
+                {
+                    if (pos.Pips <= (stoploss7 - (stoploss7 * 2)) && stoploss7 != 0)
+                    {
+                        Print("Position 7 Closing position ID: " + pos.Id + " with Stoploss pips" + pos.Pips);
+                        ClosePosition(pos);
+                    }
+                }
+                if (posType >= Position8 && posType < Position9 && Position8 != 0)
+                {
+                    if (pos.Pips <= (stoploss8 - (stoploss8 * 2)) && stoploss8 != 0)
+                    {
+                        Print("Position 8 Closing position ID: " + pos.Id + " with Stoploss pips" + pos.Pips);
+                        ClosePosition(pos);
+                    }
+                }
+                if (posType >= Position9 && posType < Position10 && Position9 != 0)
+                {
+                    if (pos.Pips <= (stoploss9 - (stoploss9 * 2)) && stoploss9 != 0)
+                    {
+                        Print("Position 9 Closing position ID: " + pos.Id + " with Stoploss pips" + pos.Pips);
+                        ClosePosition(pos);
+                    }
+                }
+                if (posType >= Position10 && Position10 != 0)
+                {
+                    if (pos.Pips <= (stoploss10 - (stoploss10 * 2)) && stoploss10 != 0)
+                    {
+                        Print("Position 10 Closing position ID: " + pos.Id + " with Stoploss pips" + pos.Pips);
+                        ClosePosition(pos);
+                    }
+                }
+            }
+        }
+        /*  private void ClosePositions(Position p)
+        {
+            if (p != null)
+            {
+                Print("Position closing with Net profit =>" + p.NetProfit);
+            }
+        }*/
+
+        #endregion
+        #region Position Information and Other Functions
+        private bool IsPositionOpenByType(TradeType type)
+        {
+            var p = Positions.FindAll(InstanceName, SymbolName, type);
+
+            if (p.Count() >= 1)
+            {
+                return true;
+            }
+
+            return false;
+        }
+        private int NumberOfPos(TradeType typ)
+        {
+            var p = Positions.FindAll(InstanceName, SymbolName, typ);
+
+            if (p.Count() >= 1)
+            {
+                return p.Count() + 1;
+            }
+            return 1;
+
+            //           return (Positions.Count(p => p.TradeType == typ) + 1);
+        }
+        private int NumberOfPos()
+        {
+            var p = Positions.FindAll(InstanceName, SymbolName);
+
+            if (p.Count() >= 1)
+            {
+                return p.Count() + 1;
+            }
+            return 1;
+
+            //           return (Positions.Count(p => p.TradeType == typ) + 1);
+        }
+        public string FindTextBetween(string text, string left, string right)
+        {
+            //Validate input arguments
+
+            int beginIndex = text.IndexOf(left);
+            // find occurence of left delimiter
+            if (beginIndex == -1)
+                return string.Empty;
+            // or throw exception?
+            beginIndex += left.Length;
+
+            int endIndex = text.IndexOf(right, beginIndex);
+            // find occurence of right delimiter
+            if (endIndex == -1)
+                return string.Empty;
+            // or throw exception?
+            return text.Substring(beginIndex, endIndex - beginIndex).Trim();
+        }
+
+        public bool CalcPeriods(Position pos, double typePeriods)
+        {
+            // Function to chech whether the periods given to the specific position type are elapsed or not
+            // Depends on MinVal()
+            double toBeMinutes = typePeriods * MinVal();
+            double timeElapsed = Server.Time.Subtract(pos.EntryTime).TotalMinutes;
+            if (toBeMinutes > timeElapsed)
+            {
+                return false;
+            }
+            else
+            {
+                return true;
+            }
+        }
+
+        public double MinVal()
+        {
+            // Function to check how many minutes in one period or candle is there
+            int minVal = 0;
+            var kk = Bars.TimeFrame.ToString();
+            if (!kk.Any(char.IsDigit))
+            {
+                kk = kk + "1";
+            }
+            Regex re = new Regex("([a-zA-Z]+)(\\d+)");
+            Match result = re.Match(kk);
+            string alphaPart = result.Groups[1].Value;
+            string numberPart = result.Groups[2].Value;
+            //  Print("Alpha: " + alphaPart);
+            //  Print("Numeric: " + numberPart);
+            if (alphaPart == "Minute")
+            {
+                minVal = int.Parse(numberPart) * 1;
+            }
+            else if (alphaPart == "Hour")
+            {
+                minVal = int.Parse(numberPart) * 60;
+            }
+            else if (alphaPart == "Daily" || alphaPart == "Day")
+            {
+                minVal = int.Parse(numberPart) * 1440;
+            }
+            else if (alphaPart == "Weekly")
+            {
+                minVal = int.Parse(numberPart) * 10080;
+            }
+            else if (alphaPart == "Monthly")
+            {
+                var mon = DateTime.DaysInMonth(Server.Time.Year, Server.Time.Month);
+                minVal = int.Parse(numberPart) * (mon * 1440);
+            }
+            return minVal;
+        }
+        #endregion
+    }
+}
+
